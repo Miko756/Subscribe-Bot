@@ -60,44 +60,7 @@ async def start_command(client: Client, message: Message):
             quote=True
         )
     if len(message.text) > 7:
-        for i in range(1):
-            if USE_SHORTLINK and (not U_S_E_P):
-                if USE_SHORTLINK: 
-                    if id not in ADMINS:
-                        try:
-                            if not verify_status['is_verified']:
-                                continue
-                        except:
-                            continue
-            try:
-                base64_string = message.text.split(" ", 1)[1]
-            except:
-                return
-            _string = await decode(base64_string)
-            argument = _string.split("-")
-            if (len(argument) == 5 )or (len(argument) == 4):
-                if not await present_hash(base64_string):
-                    try:
-                        await gen_new_count(base64_string)
-                    except:
-                        pass
-                await inc_count(base64_string)
-                if len(argument) == 5:
-                    try:
-                        start = int(int(argument[3]) / abs(client.db_channel.id))
-                        end = int(int(argument[4]) / abs(client.db_channel.id))
-                    except:
-                        return
-                    if start <= end:
-                        ids = range(start, end+1)
-                    else:
-                        ids = []
-                        i = start
-                        while True:
-                            ids.append(i)
-                            i -= 1
-                            if i < end:
-                                return
+    
 
             if (U_S_E_P):
                 if verify_status['is_verified'] and VERIFY_EXPIRE < (time.time() - verify_status['verified_time']):
@@ -134,7 +97,47 @@ await temp_msg.delete()
 # List to store the sent messages
 snt_msgs = []
 
+for msgelif len(argument) == 4:
+    try:
+        ids = [int(int(argument[3]) / abs(client.db_channel.id))]
+    except:
+        return
+temp_msg = await message.reply("Please wait... 🫷")
+try:
+    messages = await get_messages(client, ids)
+except:
+    await message.reply_text("Something went wrong..! 🥲")
+    return
+await temp_msg.delete()
+snt_msgs = []
 for msg in messages:
+    if bool(CUSTOM_CAPTION) & bool(msg.document):
+        caption = CUSTOM_CAPTION.format(previouscaption="" if not msg.caption else msg.caption.html, filename=msg.document.file_name)
+    else:
+        caption = "" if not msg.caption else msg.caption.html
+    reply_markup = None
+    try:
+        snt_msg = await msg.copy(chat_id=message.from_user.id, caption=caption, parse_mode=ParseMode.HTML, reply_markup=reply_markup, protect_content=PROTECT_CONTENT)
+        await asyncio.sleep(0.5)
+        snt_msgs.append(snt_msg)
+    except FloodWait as e:
+        await asyncio.sleep(e.x)
+        snt_msg = await msg.copy(chat_id=message.from_user.id, caption=caption, parse_mode=ParseMode.HTML, reply_markup=reply_markup, protect_content=PROTECT_CONTENT)
+        snt_msgs.append(snt_msg)
+    except:
+        pass
+if SECONDS == 0:
+    return
+notification_msg = await message.reply(f"<b>🌺 <u>Notice</u> 🌺</b>\n\n<b>This file will be deleted in {get_exp_time(SECONDS)}. Keep Supporting Us📍.</b>")
+await asyncio.sleep(SECONDS)
+for snt_msg in snt_msgs:
+    try:
+        await snt_msg.delete()
+    except:
+        pass
+await notification_msg.edit("<b>ʏᴏᴜʀ ғɪʟᴇ ʜᴀs ʙᴇᴇɴ sᴜᴄᴄᴇssғᴜʟʟʏ ᴅᴇʟᴇᴛᴇᴅ! 😼</b>")
+return
+ in messages:
     # Prepare custom caption if applicable
     if bool(CUSTOM_CAPTION) and bool(msg.document):
         caption = CUSTOM_CAPTION.format(
