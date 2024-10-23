@@ -23,23 +23,42 @@ async def start_command(client: Client, message: Message):
     if not await present_user(id):
         try:
             await add_user(id)
-        except:
-            pass
+        except Exception as e:
+            print(f"Error adding user: {e}")
+    
     verify_status = await get_verify_status(id)
-    if USE_SHORTLINK and (not U_S_E_P):
-        for i in range(1):
-            if id in ADMINS:
-                continue
-            if verify_status['is_verified'] and VERIFY_EXPIRE < (time.time() - verify_status['verified_time']):
-                await update_verify_status(id, is_verified=False)
-            if "verify_" in message.text:
-                _, token = message.text.split("_", 1)
-                if verify_status['verify_token'] != token:
-                    return await message.reply("Your token is invalid or Expired ⌛. Try again by clicking /start")
-                await update_verify_status(id, is_verified=True, verified_time=time.time())
-                if verify_status["link"] == "":
-                    reply_markup = None
-                await message.reply(f"Your token successfully verified and valid for: {get_exp_time(VERIFY_EXPIRE)} ⏳", reply_markup=reply_markup, protect_content=False, quote=True)
+    
+    if USE_SHORTLINK and not U_S_E_P:
+        if id in ADMINS:
+            return await message.reply("Admins do not need verification.")
+        
+        # Check if the user's verification is expired and reset if necessary
+        if verify_status['is_verified'] and VERIFY_EXPIRE < (time.time() - verify_status['verified_time']):
+            await update_verify_status(id, is_verified=False)
+        
+        # Split message to get the token if the format is correct
+        if "verify_" in message.text and "_" in message.text:
+            _, token = message.text.split("_", 1)
+        else:
+            return await message.reply("Invalid command format.")
+        
+        # Check if the token is valid and present
+        if 'verify_token' not in verify_status or verify_status['verify_token'] != token:
+            return await message.reply("Your token is invalid or expired ⌛. Try again by clicking /start.")
+        
+        # Update the user's verification status if the token is correct
+        await update_verify_status(id, is_verified=True, verified_time=time.time())
+        
+        # Define the reply markup if needed
+        reply_markup = None
+        
+        # Send success message
+        await message.reply(
+            f"Your token is successfully verified and valid for: {get_exp_time(VERIFY_EXPIRE)} ⏳", 
+            reply_markup=reply_markup, 
+            protect_content=False, 
+            quote=True
+        )
     if len(message.text) > 7:
         for i in range(1):
             if USE_SHORTLINK and (not U_S_E_P):
@@ -78,47 +97,7 @@ async def start_command(client: Client, message: Message):
                             ids.append(i)
                             i -= 1
                             if i < end:
-                                break
-                elif len(argument) == 4:
-                    try:
-                        ids = [int(int(argument[3]) / abs(client.db_channel.id))]
-                    except:
-                        return
-                temp_msg = await message.reply("Please wait... 🫷")
-                try:
-                    messages = await get_messages(client, ids)
-                except:
-                    await message.reply_text("Something went wrong..! 🥲")
-                    return
-                await temp_msg.delete()
-                snt_msgs = []
-                for msg in messages:
-                    if bool(CUSTOM_CAPTION) & bool(msg.document):
-                        caption = CUSTOM_CAPTION.format(previouscaption="" if not msg.caption else msg.caption.html,    filename=msg.document.file_name)
-                    else:   
-                        caption = "" if not msg.caption else msg.caption.html   
-                    reply_markup = None 
-                    try:    
-                        snt_msg = await msg.copy(chat_id=message.from_user.id, caption=caption, parse_mode=ParseMode.HTML,  reply_markup=reply_markup, protect_content=PROTECT_CONTENT)
-                        await asyncio.sleep(0.5)    
-                        snt_msgs.append(snt_msg)    
-                    except FloodWait as e:  
-                        await asyncio.sleep(e.x)    
-                        snt_msg = await msg.copy(chat_id=message.from_user.id, caption=caption, parse_mode= ParseMode.HTML,  reply_markup=reply_markup, protect_content=PROTECT_CONTENT)
-                        snt_msgs.append(snt_msg)    
-                    except: 
-                        pass
-                if (SECONDS == 0):
-                    return
-                notification_msg = await message.reply(f"<b>🌺 <u>Notice</u> 🌺</b>\n\n<b>This file will be  deleted in {get_exp_time(SECONDS)}. Keep Supporting Us📍.</b>")
-                await asyncio.sleep(SECONDS)    
-                for snt_msg in snt_msgs:    
-                    try:    
-                        await snt_msg.delete()  
-                    except: 
-                        pass    
-                await notification_msg.edit("<b>ʏᴏᴜʀ ғɪʟᴇ ʜᴀs ʙᴇᴇɴ sᴜᴄᴄᴇssғᴜʟʟʏ ᴅᴇʟᴇᴛᴇᴅ! 😼</b>")  
-                return
+
             if (U_S_E_P):
                 if verify_status['is_verified'] and VERIFY_EXPIRE < (time.time() - verify_status['verified_time']):
                     await update_verify_status(id, is_verified=False)
@@ -129,7 +108,93 @@ async def start_command(client: Client, message: Message):
                         start = int(int(argument[1]) / abs(client.db_channel.id))
                         end = int(int(argument[2]) / abs(client.db_channel.id))
                     except:
-                        return
+                  elif len(argument) == 4:
+    try:
+        # Parse the ID
+        ids = [int(int(argument[3]) / abs(client.db_channel.id))]
+    except Exception as e:
+        print(f"Error parsing IDs: {e}")
+        return
+
+# Notify user that the process has started
+temp_msg = await message.reply("Please wait... 🫷")
+
+try:
+    # Fetch messages based on the parsed ID(s)
+    messages = await get_messages(client, ids)
+except Exception as e:
+    await message.reply_text("Something went wrong..! 🥲")
+    print(f"Error getting messages: {e}")
+    return
+
+# Delete the waiting message
+await temp_msg.delete()
+
+# List to store the sent messages
+snt_msgs = []
+
+for msg in messages:
+    # Prepare custom caption if applicable
+    if bool(CUSTOM_CAPTION) and bool(msg.document):
+        caption = CUSTOM_CAPTION.format(
+            previouscaption="" if not msg.caption else msg.caption.html, 
+            filename=msg.document.file_name
+        )
+    else:
+        caption = "" if not msg.caption else msg.caption.html
+
+    reply_markup = None  # Define reply_markup as per your use case
+
+    try:
+        # Copy the message to the user's chat
+        snt_msg = await msg.copy(
+            chat_id=message.from_user.id, 
+            caption=caption, 
+            parse_mode=ParseMode.HTML, 
+            reply_markup=reply_markup, 
+            protect_content=PROTECT_CONTENT
+        )
+        await asyncio.sleep(0.5)
+        snt_msgs.append(snt_msg)
+    except FloodWait as e:
+        # Handle Telegram's flood wait error
+        await asyncio.sleep(e.x)
+        snt_msg = await msg.copy(
+            chat_id=message.from_user.id, 
+            caption=caption, 
+            parse_mode=ParseMode.HTML, 
+            reply_markup=reply_markup, 
+            protect_content=PROTECT_CONTENT
+        )
+        snt_msgs.append(snt_msg)
+    except Exception as e:
+        print(f"Error sending message: {e}")
+        continue
+
+# If no delay is specified, return early
+if SECONDS == 0:
+    return
+
+# Notify the user that the file will be deleted after some time
+notification_msg = await message.reply(
+    f"<b>🌺 <u>Notice</u> 🌺</b>\n\n"
+    f"<b>This file will be deleted in {get_exp_time(SECONDS)}. Keep Supporting Us📍.</b>"
+)
+
+# Wait for the specified time
+await asyncio.sleep(SECONDS)
+
+# Delete all sent messages
+for snt_msg in snt_msgs:
+    try:
+        await snt_msg.delete()
+    except Exception as e:
+        print(f"Error deleting message: {e}")
+        continue
+
+# Notify the user that their file has been deleted
+await notification_msg.edit("<b>ʏᴏᴜʀ ғɪʟᴇ ʜᴀs ʙᴇᴇɴ sᴜᴄᴄᴇssғᴜʟʟʏ ᴅᴇʟᴇᴛᴇᴅ! 😼</b>")
+      return
                     if start <= end:
                         ids = range(start, end+1)
                     else:
@@ -198,66 +263,7 @@ async def start_command(client: Client, message: Message):
                         InlineKeyboardButton('• ʜᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴛʜɪs ʟɪɴᴋ •', url=TUT_VID)],
                         [InlineKeyboardButton("• ʙᴜʏ ᴘʀᴇᴍɪᴜᴍ ᴘʟᴀɴ •", callback_data="buy_prem")]
                         ]
-                    else:
-                        btn = [
-                        [InlineKeyboardButton("• ᴄʟɪᴄᴋ ʜᴇʀᴇ •", url=link)],
-                        [InlineKeyboardButton('• ʜᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴛʜɪs ʟɪɴᴋ •', url=TUT_VID)]
-                        ]
-                    await message.reply(f"ʏᴏᴜʀ ᴀᴅs ᴛᴏᴋᴇɴ ɪs ᴇxᴘɪʀᴇᴅ, ʀᴇғʀᴇsʜ ʏᴏᴜʀ ᴛᴏᴋᴇɴ ᴀɴᴅ ᴛʀʏ ᴀɢᴀɪɴ.\n\nᴛᴏᴋᴇɴ ᴛɪᴍᴇᴏᴜᴛ: {get_exp_time(VERIFY_EXPIRE)}\n\nWhat is the token?\n\nᴛʜɪs ɪs ᴀɴ ᴀᴅs ᴛᴏᴋᴇɴ. ɪғ ʏᴏᴜ ᴘᴀss 1 ᴀᴅ, ʏᴏᴜ ᴄᴀɴ ᴜsᴇ ᴛʜᴇ ʙᴏᴛ ғᴏʀ 24 ʜᴏᴜʀ ᴀғᴛᴇʀ ᴘᴀssɪɴɢ ᴛʜᴇ ᴀᴅ.", reply_markup=InlineKeyboardMarkup(btn), protect_content=False, quote=True)
-                    return
-    
-    for i in range(1):
-        if USE_SHORTLINK and (not U_S_E_P):
-            if USE_SHORTLINK : 
-                if id not in ADMINS:
-                    try:
-                        if not verify_status['is_verified']:
-                            continue
-                    except:
-                        continue
-        reply_markup = InlineKeyboardMarkup(
-            [
-                [
-                    InlineKeyboardButton("😊 𝐀𝐛𝐨𝐮𝐭 𝐌𝐞", callback_data="about"),
-                    InlineKeyboardButton("🔒 𝐂𝐥𝐨𝐬𝐞", callback_data="close")
-                ]
-            ]
-        )
-        await message.reply_text(
-            text=START_MSG.format(
-                first=message.from_user.first_name,
-                last=message.from_user.last_name,
-                username=None if not message.from_user.username else '@' + message.from_user.username,
-                mention=message.from_user.mention,
-                id=message.from_user.id
-            ),
-            reply_markup=reply_markup,
-            disable_web_page_preview=True,
-            quote=True
-        )
-        return
-    if USE_SHORTLINK and (not U_S_E_P): 
-        if id in ADMINS:
-            return
-        verify_status = await get_verify_status(id)
-        if not verify_status['is_verified']:
-            token = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
-            await update_verify_status(id, verify_token=token, link="")
-            link = await get_shortlink(SHORTLINK_API_URL, SHORTLINK_API_KEY,f'https://telegram.dog/{client.username}?start=verify_{token}')
-            if USE_PAYMENT:
-                btn = [
-                [InlineKeyboardButton("• ᴄʟɪᴄᴋ ʜᴇʀᴇ •", url=link),
-                InlineKeyboardButton('• ʜᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴛʜɪs ʟɪɴᴋ •', url=TUT_VID)],
-                [InlineKeyboardButton("• ʙᴜʏ ᴘʀᴇᴍɪᴜᴍ ᴘʟᴀɴ •", callback_data="buy_prem")]
-                ]
-            else:
-                btn = [
-                [InlineKeyboardButton("• ᴄʟɪᴄᴋ ʜᴇʀᴇ •", url=link)],
-                [InlineKeyboardButton('• ʜᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴛʜɪs ʟɪɴᴋ •', url=TUT_VID)]
-                ]
-            await message.reply(f"ʏᴏᴜʀ ᴀᴅs ᴛᴏᴋᴇɴ ɪs ᴇxᴘɪʀᴇᴅ, ʀᴇғʀᴇsʜ ʏᴏᴜʀ ᴛᴏᴋᴇɴ ᴀɴᴅ ᴛʀʏ ᴀɢᴀɪɴ.\n\nᴛᴏᴋᴇɴ ᴛɪᴍᴇᴏᴜᴛ: {get_exp_time(VERIFY_EXPIRE)}\n\nWhat is the token?\n\nᴛʜɪs ɪs ᴀɴ ᴀᴅs ᴛᴏᴋᴇɴ. ɪғ ʏᴏᴜ ᴘᴀss 1 ᴀᴅ, ʏᴏᴜ ᴄᴀɴ ᴜsᴇ ᴛʜᴇ ʙᴏᴛ ғᴏʀ 24 ʜᴏᴜʀ ᴀғᴛᴇʀ ᴘᴀssɪɴɢ ᴛʜᴇ ᴀᴅ.", reply_markup=InlineKeyboardMarkup(btn), protect_content=False, quote=True)
-            return
-    return
+
 
 
     
@@ -269,7 +275,60 @@ REPLY_ERROR = """<code>Use this command as a replay to any telegram message with
 
 #=====================================================================================#
 
-@Bot.on_message(filters.command('start') & filters.private)
+@Bot.on_messageawait message.reply_text(
+    text=START_MSG.format(
+        first=message.from_user.first_name,
+        last=message.from_user.last_name,
+        username=None if not message.from_user.username else '@' + message.from_user.username,
+        mention=message.from_user.mention,
+        id=message.from_user.id
+    ),
+    reply_markup=reply_markup,
+    disable_web_page_preview=True,
+    quote=True
+)
+return
+
+if USE_SHORTLINK and not U_S_E_P:
+    if id in ADMINS:
+        return
+
+    # Get verification status of the user
+    verify_status = await get_verify_status(id)
+    
+    if not verify_status['is_verified']:
+        # Generate a token for verification
+        token = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+        await update_verify_status(id, verify_token=token, link="")
+        
+        # Create a short link for the verification process
+        link = await get_shortlink(SHORTLINK_API_URL, SHORTLINK_API_KEY, f'https://telegram.dog/{client.username}?start=verify_{token}')
+        
+        # Buttons for user verification
+        if USE_PAYMENT:
+            btn = [
+                [InlineKeyboardButton("• ᴄʟɪᴄᴋ ʜᴇʀᴇ •", url=link),
+                 InlineKeyboardButton('• ʜᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴛʜɪs ʟɪɴᴋ •', url=TUT_VID)],
+                [InlineKeyboardButton("• ʙᴜʏ ᴘʀᴇᴍɪᴜᴍ ᴘʟᴀɴ •", callback_data="buy_prem")]
+            ]
+        else:
+            btn = [
+                [InlineKeyboardButton("• ᴄʟɪᴄᴋ ʜᴇʀᴇ •", url=link)],
+                [InlineKeyboardButton('• ʜᴏᴡ ᴛᴏ ᴏᴘᴇɴ ᴛʜɪs ʟɪɴᴋ •', url=TUT_VID)]
+            ]
+        
+        # Inform the user their token has expired and provide a new link
+        await message.reply(
+            f"ʏᴏᴜʀ ᴀᴅs ᴛᴏᴋᴇɴ ɪs ᴇxᴘɪʀᴇᴅ, ʀᴇғʀᴇsʜ ʏᴏᴜʀ ᴛᴏᴋᴇɴ ᴀɴᴅ ᴛʀʏ ᴀɢᴀɪɴ.\n\n"
+            f"ᴛᴏᴋᴇɴ ᴛɪᴍᴇᴏᴜᴛ: {get_exp_time(VERIFY_EXPIRE)}\n\n"
+            f"What is the token?\n\n"
+            f"ᴛʜɪs ɪs ᴀɴ ᴀᴅs ᴛᴏᴋᴇɴ. ɪғ ʏᴏᴜ ᴘᴀss 1 ᴀᴅ, ʏᴏᴜ ᴄᴀɴ ᴜsᴇ ᴛʜᴇ ʙᴏᴛ ғᴏʀ 24 ʜᴏᴜʀs ᴀғᴛᴇʀ ᴘᴀssɪɴɢ ᴛʜᴇ ᴀᴅ.", 
+            reply_markup=InlineKeyboardMarkup(btn), 
+            protect_content=False, 
+            quote=True
+        )
+        return
+(filters.command('start') & filters.private)
 async def not_joined(client: Client, message: Message):
     if FORCE_SUB_CHANNEL & FORCE_SUB_CHANNEL2:
         buttons = [
