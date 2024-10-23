@@ -97,6 +97,7 @@ async def start_command(client: Client, message: Message):
                             ids.append(i)
                             i -= 1
                             if i < end:
+                                return
 
             if (U_S_E_P):
                 if verify_status['is_verified'] and VERIFY_EXPIRE < (time.time() - verify_status['verified_time']):
